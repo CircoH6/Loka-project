@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { rentalInterval, calculatePrice, addMonthsClamped, overlaps, normalizeText, assertPublishable } from '../server/domain.js';
+
+test('prix transparent en FCFA, frais séparés et arrondis',()=>{assert.deepEqual(calculatePrice(25000,2),{rentalPrice:50000,platformFee:2500,total:52500,currency:'XOF',feeRate:.05});assert.equal(calculatePrice(2500,1).platformFee,125);assert.equal(calculatePrice(101,1).total,106);});
+test('durées courtes et longues, avec heure du Bénin',()=>{for(const [unit,qty,hours] of [['hour',3,3],['half_day',2,12],['day',1,12],['night',2,24],['week',2,336]]){const q=rentalInterval('2027-02-01T20:00:00+01:00',unit,qty);assert.equal((Date.parse(q.endAt)-Date.parse(q.startAt))/3600000,hours);assert.equal(q.startAt,'2027-02-01T19:00:00.000Z');}});
+test('mois de calendrier et années bissextiles',()=>{assert.equal(rentalInterval('2027-01-31T14:00:00+01:00','month',1).endAt,'2027-02-28T13:00:00.000Z');assert.equal(rentalInterval('2028-01-31T14:00:00+01:00','month',1).endAt,'2028-02-29T13:00:00.000Z');assert.equal(rentalInterval('2027-11-15T14:00:00+01:00','month',3).endAt,'2028-02-15T13:00:00.000Z');assert.equal(addMonthsClamped(new Date('2027-03-31T12:00:00Z'),1).getUTCDate(),30);});
+test('dates et quantités invalides refusées',()=>{for(const args of [['2027-02-30T14:00:00+01:00','night',1],['2027-01-01','night',1],['2027-01-01T14:00:00+01:00','night',0],['2027-01-01T14:00:00+01:00','month',13],['2027-01-01T14:00:00+01:00','year',1]])assert.throws(()=>rentalInterval(...args));});
+test('les bornes qui se touchent ne se chevauchent pas',()=>{assert.equal(overlaps({startAt:'a',endAt:'b'},{startAt:'b',endAt:'c'}),false);assert.equal(overlaps({startAt:'a',endAt:'c'},{startAt:'b',endAt:'d'}),true);});
+test('recherche insensible aux accents et à la casse',()=>{assert.equal(normalizeText(' Cadjèhoun '),'cadjehoun');assert.equal(normalizeText('FIDJROSSÈ'),'fidjrosse');});
+test('publication complète obligatoire',()=>{assert.throws(()=>assertPublishable({title:'Titre'},[]));assert.doesNotThrow(()=>assertPublishable({title:'Un joli logement',description:'Une description suffisamment longue pour présenter le lieu.',photos:['/images/loka-hero.webp'],rules:['Calme'],city:'Cotonou',neighborhood:'Fidjrossè'},[{active:true}]));});
